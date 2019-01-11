@@ -54,7 +54,7 @@ public class GameCamera : MonoBehaviour
         {
             case CameraState.SMOOTH_MOVE:
                 movementDone = smoothMove.Update(transform.position);
-                transform.position = smoothMove.calculatedPosition;
+                transform.position = new Vector3(smoothMove.calculatedPosition.x, smoothMove.calculatedPosition.y, transform.position.z);
                 break;
             case CameraState.SAFEZONE_BOUNDS:
                 movementDone = safeZone.Update(CameraComponent);
