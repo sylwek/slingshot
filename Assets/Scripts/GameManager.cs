@@ -15,13 +15,21 @@ public class GameManager : MonoBehaviour
     public float maxProjectileZoom = 0.5f;
     public float maxZoomVelocityThreshold = 20f;
     public float projectileZoomSpeedFactor = 0.05f;
+    //shake
+    public float ShakeDuration = 0.2f;
+    public float ShakePower = 1.0f;
+    public Shaker CameraHolder;
+    //
+    public float NextShootDelayTime = 2f;
+    public float NextShootCameraMovementSpeed = 2f;
+    private float NextShootCountdown = 0f;
 
 
     // Use this for initialization
     void Start()
     {
         // setup initial camera's position
-        gameCamera.GetComponent<GameCamera>().SmoothMoveToPoint(initialCameraPosition, 0.1f);
+        gameCamera.SmoothMoveToPoint(initialCameraPosition, 0.1f);
     }
 
     private void OnDrawGizmos()
@@ -49,5 +57,33 @@ public class GameManager : MonoBehaviour
             gameCamera.FollowWithSafeZone(myCatapult.currentProjectile, safeAreaDeadzone);
             gameCamera.AdjustZoom(myCatapult.currentProjectile, maxProjectileZoom, maxZoomVelocityThreshold, projectileZoomSpeedFactor);
         }
+
+        if(NextShootCountdown > 0f)
+        {
+            NextShootCountdown -= Time.deltaTime;
+
+            if(NextShootCountdown <= 0f)
+            {
+                NextShootCountdown = 0f;
+                SetupNextShoot();
+            }
+        }
+    }
+
+    public void OnFirstProjectileCollision()
+    {
+        CameraHolder.Shake(ShakeDuration, ShakePower);
+    }
+
+    public void StartCountdownToNextShoot()
+    {
+        Debug.Log("StartCountdownToNextShoot");
+        NextShootCountdown = NextShootDelayTime;
+    }
+
+    private void SetupNextShoot()
+    {
+        gameCamera.SmoothMoveToPoint(initialCameraPosition, NextShootCameraMovementSpeed);
+        gameCamera.DisableZoomAdjustment();
     }
 }

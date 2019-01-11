@@ -24,7 +24,8 @@ public class GameCamera : MonoBehaviour
     void Start()
     {
         CameraComponent = GetComponent<Camera>();
-        //zoomAdjustment.referenceCameraSize = CameraComponent.orthographicSize;
+        //if (CameraComponent == null)
+        //    CameraComponent = GetComponentInChildren<Camera>();
     }
 
     private void OnDrawGizmos()
@@ -84,6 +85,11 @@ public class GameCamera : MonoBehaviour
     {
         zoomAdjustment = new ZoomAdjustment(velocityScr, maxZoom, velocityThreshold, speed, CameraComponent.orthographicSize);
         zoomAdjustment.enabled = true;
+    }
+
+    public void DisableZoomAdjustment()
+    {
+        zoomAdjustment.enabled = false;
     }
 }
 
