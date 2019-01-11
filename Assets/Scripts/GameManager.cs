@@ -12,6 +12,9 @@ public class GameManager : MonoBehaviour
     public Vector3 initialCameraPosition = Vector3.zero;
     public Vector2 safeAreaSize = Vector2.zero;
     public Rect safeAreaDeadzone = Rect.zero;
+    public float maxProjectileZoom = 1.5f;
+    public float maxZoomVelocityThreshold = 20f;
+    public float projectileZoomSpeedFactor = 0.05f;
 
 
     // Use this for initialization
@@ -25,19 +28,16 @@ public class GameManager : MonoBehaviour
         if (!debugInfo)
             return;
 
-        //var worldPosLeftTop = gameCamera.GetComponent<Camera>().ScreenToWorldPoint(new Vector2(safeAreaDeadzone.xMin * Screen.width, safeAreaDeadzone.yMin * Screen.height));
-        //var worldPosBottomRight = gameCamera.GetComponent<Camera>().ScreenToWorldPoint(new Vector2(safeAreaDeadzone.xMax * Screen.width, safeAreaDeadzone.yMax * Screen.height));
+        Gizmos.color = new Color(1, 0, 0, .5f);
+        var camera = gameCamera.GetComponent<Camera>();
 
-        var position = gameCamera.GetComponent<Camera>().ScreenToViewportPoint(new Vector2(safeAreaDeadzone.center.x * Screen.width, safeAreaDeadzone.center.y * Screen.height));
-        var size = /*gameCamera.GetComponent<Camera>().ScreenToWorldPoint(*/new Vector2(safeAreaDeadzone.size.x * Screen.width, safeAreaDeadzone.size.y * Screen.height);
+        float height = camera.orthographicSize * 2.0f;
+        float width = height * camera.aspect;
 
-        //Debug.Log("DSA " + size.ToString());
-        Debug.Log(Input.mousePosition.ToString());
-
-        Gizmos.color = new Color(0, 1, 0, .5f);
-        //Gizmos.DrawCube(safeAreaDeadzone.center, safeAreaDeadzone.size);
-        //Rect relative = new Rect()
-        Gizmos.DrawCube(position, size);
+        Gizmos.DrawCube(camera.ViewportToWorldPoint(
+            new Vector3(safeAreaDeadzone.center.x, safeAreaDeadzone.center.y, camera.nearClipPlane)),
+            new Vector2(width * safeAreaDeadzone.width, height * safeAreaDeadzone.height)
+            );
     }
 
     // Update is called once per frame
@@ -45,9 +45,10 @@ public class GameManager : MonoBehaviour
     {
         if (Input.GetMouseButtonUp(0) == true)
         {
-            gameCamera.FollowWithSafeZone(myCatapult.currentProjectile.GetComponent<Collider2D>().bounds, safeAreaSize);
+            gameCamera.FollowWithSafeZone(myCatapult.currentProjectile, safeAreaDeadzone);
+            //gameCamera.SimpleFollow(myCatapult.currentProjectile.transform);
         }
 
-        gameCamera.UpdateSafeZone(myCatapult.currentProjectile.GetComponent<Collider2D>().bounds);
+        //gameCamera.UpdateSafeZone(myCatapult.currentProjectile.GetComponent<Collider2D>().bounds);
     }
 }
