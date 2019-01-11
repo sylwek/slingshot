@@ -5,38 +5,26 @@ public class GameCamera : MonoBehaviour
 {
     public bool debugInfo = false;
 
-    //temp
-    private Transform Follow;
-    private Vector3 Offset = Vector3.zero;
-
-    private float maxProjectileZoom = 1.5f;
-    private float maxZoomVelocityThreshold = 20f;
-    private float projectileZoomSpeedFactor = 0.05f;
-    private float referenceZoom = 1f;
-
-
     private enum CameraState
     {
         IDLE,
         SMOOTH_MOVE,
         SAFEZONE_BOUNDS,
-        FOLLOW,
     }
 
     private CameraState currentCameraState = CameraState.IDLE;
+    private Camera CameraComponent = null;
 
-    // smooth move
-    private Vector2 smoothMoveDesiredPosition = Vector2.zero;
-    private float smoothMoveTime = 0.0f;
-    private float smoothMoveSpeed = 0.0f;
-
-    //
+    // camera's modifiers
     SafeZoneBounds safeZone;
+    SmoothMove smoothMove;
+    ZoomAdjustment zoomAdjustment;
 
     // Use this for initialization
     void Start()
     {
-
+        CameraComponent = GetComponent<Camera>();
+        //zoomAdjustment.referenceCameraSize = CameraComponent.orthographicSize;
     }
 
     private void OnDrawGizmos()
@@ -64,43 +52,26 @@ public class GameCamera : MonoBehaviour
         switch (currentCameraState)
         {
             case CameraState.SMOOTH_MOVE:
-                movementDone = UpdateSmoothMove();
+                movementDone = smoothMove.Update(transform.position);
+                transform.position = smoothMove.calculatedPosition;
                 break;
             case CameraState.SAFEZONE_BOUNDS:
-                movementDone = safeZone.Update(GetComponent<Camera>());
-                transform.position -= new Vector3(safeZone.desiredCameraShift.x, safeZone.desiredCameraShift.y);
-                break;
-            case CameraState.FOLLOW:
-                movementDone = UpdateFollow();
+                movementDone = safeZone.Update(CameraComponent);
+                transform.position -= new Vector3(safeZone.cameraShift.x, safeZone.cameraShift.y);
                 break;
         }
+
+        if (!zoomAdjustment.Update(CameraComponent.orthographicSize))
+            CameraComponent.orthographicSize = zoomAdjustment.zoomedOrthCameraSize;
 
         if (movementDone)
             currentCameraState = CameraState.IDLE;
     }
 
-    public void SmoothMoveToPoint(Vector2 desiredPosition, float time, float speed)
+    public void SmoothMoveToPoint(Vector2 desiredPosition, float speed)
     {
-        smoothMoveDesiredPosition = desiredPosition;
-        smoothMoveTime = time;
-        smoothMoveSpeed = speed;
+        smoothMove = new SmoothMove(desiredPosition, speed);
         currentCameraState = CameraState.SMOOTH_MOVE;
-    }
-
-    private bool UpdateSmoothMove()
-    {
-        if(Vector2.Distance(transform.position, smoothMoveDesiredPosition) < 0.1f)
-        {
-            transform.position = smoothMoveDesiredPosition;
-            return true;
-        }
-
-        Vector2 velocity = Vector2.zero;
-        //Vector2 newPosition = Vector2.SmoothDamp(transform.position, smoothMoveDesiredPosition, ref velocity, smoothMoveTime, smoothMoveSpeed, Time.deltaTime);
-        Vector2 newPosition = Vector2.Lerp(transform.position, smoothMoveDesiredPosition, 0.05f);
-        transform.position = new Vector3(newPosition.x, newPosition.y, transform.position.z);
-
-        return false;
     }
 
     public void FollowWithSafeZone(GameObject follow, Rect zone)
@@ -109,42 +80,16 @@ public class GameCamera : MonoBehaviour
         currentCameraState = CameraState.SAFEZONE_BOUNDS;
     }
 
-    public void UpdateSafeZone()
+    public void AdjustZoom(GameObject velocityScr, float maxZoom, float velocityThreshold, float speed)
     {
-        safeZone.Update(GetComponent<Camera>());
-    }
-
-    public void SimpleFollow(Transform follow)
-    {
-        Follow = follow;
-        Offset = follow.transform.position - transform.position;
-
-        maxProjectileZoom = 0.2f;
-        maxZoomVelocityThreshold = 20f;
-        projectileZoomSpeedFactor = 0.05f;
-        referenceZoom = GetComponent<Camera>().orthographicSize;
-
-
-        currentCameraState = CameraState.FOLLOW;
-    }
-
-    private bool UpdateFollow()
-    {
-        transform.position = Follow.position + Offset;
-
-        float zoomFactor = Mathf.Lerp(0f, 1f, Follow.GetComponent<Rigidbody2D>().velocity.magnitude / maxZoomVelocityThreshold);
-        var desiredCameraSize = referenceZoom - (zoomFactor * maxProjectileZoom * referenceZoom);
-        float velocity = 0f;
-        GetComponent<Camera>().orthographicSize = Mathf.SmoothDamp(GetComponent<Camera>().orthographicSize, desiredCameraSize, ref velocity, projectileZoomSpeedFactor);
-        Debug.Log("zoomFactor: " + zoomFactor.ToString());
-
-        return false;
+        zoomAdjustment = new ZoomAdjustment(velocityScr, maxZoom, velocityThreshold, speed, CameraComponent.orthographicSize);
+        zoomAdjustment.enabled = true;
     }
 }
 
 struct SafeZoneBounds
 {
-    public Vector2 desiredCameraShift;
+    public Vector2 cameraShift;
 
     private Rect safeZone;
     private GameObject followObject;
@@ -153,14 +98,14 @@ struct SafeZoneBounds
     {
         followObject = follow;
         safeZone = zone;
-        desiredCameraShift = Vector2.zero;
+        cameraShift = Vector2.zero;
     }
 
     public bool Update(Camera camera)
     {
         // safe area in world space coordinates
         var worldRect = GetWorldRect(camera);
-        desiredCameraShift = Vector2.zero;
+        cameraShift = Vector2.zero;
 
         // check if safe area contains follow object
         var bounds = followObject.GetComponent<Collider2D>().bounds;
@@ -168,14 +113,14 @@ struct SafeZoneBounds
             return false; // within rect
 
         if (bounds.min.x < worldRect.xMin)
-            desiredCameraShift.x = worldRect.xMin - bounds.min.x;
+            cameraShift.x = worldRect.xMin - bounds.min.x;
         else if (bounds.max.x > worldRect.xMax)
-            desiredCameraShift.x = worldRect.xMax - bounds.max.x;
+            cameraShift.x = worldRect.xMax - bounds.max.x;
 
         if (bounds.min.y < worldRect.yMin)
-            desiredCameraShift.y = worldRect.yMin - bounds.min.y;
+            cameraShift.y = worldRect.yMin - bounds.min.y;
         else if (bounds.max.y > worldRect.yMax)
-            desiredCameraShift.y = worldRect.yMax - bounds.max.y;
+            cameraShift.y = worldRect.yMax - bounds.max.y;
 
         return false;
     }
@@ -197,5 +142,85 @@ struct SafeZoneBounds
             );
 
         return safeZoneWorldRect;
+    }
+}
+
+struct SmoothMove
+{
+    public Vector2 calculatedPosition;
+
+    private Vector2 desiredPosition;
+    private float speed;
+
+    public SmoothMove(Vector2 position, float moveSpeed)
+    {
+        calculatedPosition = Vector2.zero;
+        desiredPosition = position;
+        speed = moveSpeed;
+    }
+
+    public bool Update(Vector2 currentCameraPosition)
+    {
+        if (Vector2.Distance(currentCameraPosition, desiredPosition) < 0.05f)
+        {
+            calculatedPosition = desiredPosition;
+            Debug.Log("SmoothMove ended.");
+            return true;
+        }
+
+        Vector2 velocity = Vector2.zero;
+        //calculatedPosition = Vector2.SmoothDamp(transform.position, smoothMoveDesiredPosition, ref velocity, smoothMoveTime, smoothMoveSpeed, Time.deltaTime);
+        calculatedPosition = Vector2.Lerp(currentCameraPosition, desiredPosition, speed);
+
+        return false;
+    }
+}
+
+struct ZoomAdjustment
+{
+    public float zoomedOrthCameraSize;
+
+    private float maxProjectileZoom;
+    private float maxZoomVelocityThreshold;
+    private float projectileZoomSpeedFactor;
+    private float referenceCameraSize;
+    private GameObject VelocitySource;
+    public bool enabled { get; set; }
+
+    public ZoomAdjustment(GameObject velocityScr, float maxZoom, float velocityThreshold, float speed, float cameraSize)
+    {
+        zoomedOrthCameraSize = cameraSize;
+        VelocitySource = velocityScr;
+        maxProjectileZoom = maxZoom;
+        maxZoomVelocityThreshold = velocityThreshold;
+        projectileZoomSpeedFactor = speed;
+        referenceCameraSize = cameraSize;
+        enabled = false;
+    }
+
+    public bool Update(float currentCameraSize)
+    {
+        if (VelocitySource == null)
+            return true;
+
+        if (enabled)
+        {
+            float zoomFactor = Mathf.Lerp(0f, 1f, VelocitySource.GetComponent<Rigidbody2D>().velocity.magnitude / maxZoomVelocityThreshold);
+            var adjustedSize = referenceCameraSize - (zoomFactor * maxProjectileZoom * referenceCameraSize);
+            float velocity = 0f;
+            zoomedOrthCameraSize = Mathf.SmoothDamp(currentCameraSize, adjustedSize, ref velocity, projectileZoomSpeedFactor);
+            return false;
+        }
+        else
+        {
+            float velocity = 0f;
+            zoomedOrthCameraSize = Mathf.SmoothDamp(currentCameraSize, referenceCameraSize, ref velocity, projectileZoomSpeedFactor);
+            bool done = (zoomedOrthCameraSize - referenceCameraSize) < 0.05f;
+
+            if (done)
+                zoomedOrthCameraSize = referenceCameraSize;
+
+            return done;
+        }
     }
 }

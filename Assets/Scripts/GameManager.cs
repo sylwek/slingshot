@@ -12,7 +12,7 @@ public class GameManager : MonoBehaviour
     public Vector3 initialCameraPosition = Vector3.zero;
     public Vector2 safeAreaSize = Vector2.zero;
     public Rect safeAreaDeadzone = Rect.zero;
-    public float maxProjectileZoom = 1.5f;
+    public float maxProjectileZoom = 0.5f;
     public float maxZoomVelocityThreshold = 20f;
     public float projectileZoomSpeedFactor = 0.05f;
 
@@ -20,7 +20,8 @@ public class GameManager : MonoBehaviour
     // Use this for initialization
     void Start()
     {
-        gameCamera.GetComponent<GameCamera>().SmoothMoveToPoint(initialCameraPosition, 0.5f, 200.0f);
+        // setup initial camera's position
+        gameCamera.GetComponent<GameCamera>().SmoothMoveToPoint(initialCameraPosition, 0.1f);
     }
 
     private void OnDrawGizmos()
@@ -46,9 +47,7 @@ public class GameManager : MonoBehaviour
         if (Input.GetMouseButtonUp(0) == true)
         {
             gameCamera.FollowWithSafeZone(myCatapult.currentProjectile, safeAreaDeadzone);
-            //gameCamera.SimpleFollow(myCatapult.currentProjectile.transform);
+            gameCamera.AdjustZoom(myCatapult.currentProjectile, maxProjectileZoom, maxZoomVelocityThreshold, projectileZoomSpeedFactor);
         }
-
-        //gameCamera.UpdateSafeZone(myCatapult.currentProjectile.GetComponent<Collider2D>().bounds);
     }
 }
