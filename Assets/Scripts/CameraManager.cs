@@ -7,9 +7,6 @@ public class CameraManager : MonoBehaviour
     public Camera gameCamera;
     public GameObject SceneDragDetectionObject;
 
-    private Vector2 lastDragPosition = Vector3.zero;
-    private bool dragging = false;
-
     // Use this for initialization
     void Start()
     {
@@ -34,7 +31,7 @@ public class CameraManager : MonoBehaviour
 
     public void OnDragEnd(PointerEventData data)
     {
-        gameCamera.GetComponent<GameCamera>().EnableFreeRoam(Vector3.zero);
+        gameCamera.GetComponent<GameCamera>().DisableFreeRoam();
     }
 
     private void SetupDragEventTriggers()

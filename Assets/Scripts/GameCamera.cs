@@ -66,7 +66,9 @@ public class GameCamera : MonoBehaviour
                 transform.position -= new Vector3(safeZone.cameraShift.x, safeZone.cameraShift.y);
                 break;
             case CameraState.FREE_ROAM:
-                transform.position = transform.position + freeRoamOrigin - CameraComponent.ScreenToWorldPoint(Input.mousePosition);
+                var newPosition = transform.position + freeRoamOrigin - CameraComponent.ScreenToWorldPoint(Input.mousePosition);
+                newPosition.z = transform.position.z;
+                transform.position = newPosition;
                 break;
         }
 
