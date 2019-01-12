@@ -13,7 +13,7 @@ public class GameCamera : MonoBehaviour
         IDLE,
     }
 
-    private CameraState currentCameraState = CameraState.FREE_ROAM;
+    private CameraState currentCameraState = CameraState.IDLE;
     private Camera CameraComponent = null;
     private Rect CameraBounds = Rect.zero;
 

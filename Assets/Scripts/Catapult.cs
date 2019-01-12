@@ -49,8 +49,8 @@ public class Catapult : MonoBehaviour
                 break;
 
             case CatapultState.LOADED:
-                if (Input.GetMouseButtonUp(0) == true)
-                    catapultState = CatapultState.SHOOTING;
+                //if (Input.GetMouseButtonUp(0) == true)
+                //    catapultState = CatapultState.SHOOTING;
 
                 currentArmTime = 0.0f;
                 break;
