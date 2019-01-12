@@ -9,8 +9,7 @@ public class GameManager : MonoBehaviour
     public GameObject parralaxManager = null;
     public Catapult myCatapult = null;
     public GameObject myCastle = null;
-    public Vector3 initialCameraPosition = Vector3.zero;
-    public Vector2 safeAreaSize = Vector2.zero;
+    public Transform initialCameraPosition = null;
     public Rect safeAreaDeadzone = Rect.zero;
     public float maxProjectileZoom = 0.5f;
     public float maxZoomVelocityThreshold = 20f;
@@ -23,13 +22,16 @@ public class GameManager : MonoBehaviour
     public float NextShootDelayTime = 2f;
     public float NextShootCameraMovementSpeed = 2f;
     private float NextShootCountdown = 0f;
+    // camera bounds
+    Rect CameraBounds = new Rect(0, 0, 100, 40);
 
 
     // Use this for initialization
     void Start()
     {
         // setup initial camera's position
-        gameCamera.SmoothMoveToPoint(initialCameraPosition, 0.1f);
+        //gameCamera.SmoothMoveToPoint(initialCameraPosition.position, 0.1f);
+        gameCamera.SetCameraBounds(CameraBounds);
     }
 
     private void OnDrawGizmos()
@@ -78,12 +80,12 @@ public class GameManager : MonoBehaviour
     public void StartCountdownToNextShoot()
     {
         Debug.Log("StartCountdownToNextShoot");
-        NextShootCountdown = NextShootDelayTime;
+        //NextShootCountdown = NextShootDelayTime;
     }
 
     private void SetupNextShoot()
     {
-        gameCamera.SmoothMoveToPoint(initialCameraPosition, NextShootCameraMovementSpeed);
+        gameCamera.SmoothMoveToPoint(initialCameraPosition.position, NextShootCameraMovementSpeed);
         gameCamera.DisableZoomAdjustment();
     }
 }

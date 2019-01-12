@@ -68,7 +68,7 @@ public class Projectile : MonoBehaviour
         foreach (var velocity in cumulativeVelocity)
             result += velocity;
 
-        Debug.Log("CumulativeVelocity: " + result.ToString());
+        //Debug.Log("CumulativeVelocity: " + result.ToString());
         return result;
     }
 }

@@ -7,18 +7,22 @@ public class GameCamera : MonoBehaviour
 
     private enum CameraState
     {
-        IDLE,
+        FREE_ROAM,
         SMOOTH_MOVE,
         SAFEZONE_BOUNDS,
     }
 
-    private CameraState currentCameraState = CameraState.IDLE;
+    private CameraState currentCameraState = CameraState.FREE_ROAM;
     private Camera CameraComponent = null;
+    private Rect CameraBounds = Rect.zero;
 
     // camera's modifiers
     SafeZoneBounds safeZone;
     SmoothMove smoothMove;
     ZoomAdjustment zoomAdjustment;
+
+    // free roam
+    Vector3 freeRoamOffset = Vector3.zero;
 
     // Use this for initialization
     void Start()
@@ -60,13 +64,33 @@ public class GameCamera : MonoBehaviour
                 movementDone = safeZone.Update(CameraComponent);
                 transform.position -= new Vector3(safeZone.cameraShift.x, safeZone.cameraShift.y);
                 break;
+            case CameraState.FREE_ROAM:
+                Debug.Log("@@@ Pos: " + transform.position.ToString() + " Offset: " + freeRoamOffset.ToString());
+                transform.position -= freeRoamOffset;
+                freeRoamOffset = Vector3.zero;
+                break;
         }
 
-        if (!zoomAdjustment.Update(CameraComponent.orthographicSize))
-            CameraComponent.orthographicSize = zoomAdjustment.zoomedOrthCameraSize;
+        //if (!zoomAdjustment.Update(CameraComponent.orthographicSize))
+        //    CameraComponent.orthographicSize = zoomAdjustment.zoomedOrthCameraSize;
+
+        if (CameraBounds != Rect.zero)
+            transform.position += BoundedCameraPosition();
 
         if (movementDone)
-            currentCameraState = CameraState.IDLE;
+            currentCameraState = CameraState.FREE_ROAM;
+    }
+
+    public static Rect GetCameraWorldRect(Camera camera, Rect viewportRect)
+    {
+        float height = camera.orthographicSize * 2.0f;
+        float width = height * camera.aspect;
+        var worldRect = new Rect(
+            camera.ViewportToWorldPoint(new Vector2(viewportRect.x, viewportRect.y)),
+            new Vector2(width * viewportRect.width, height * viewportRect.height)
+            );
+
+        return worldRect;
     }
 
     public void SmoothMoveToPoint(Vector2 desiredPosition, float speed)
@@ -91,6 +115,38 @@ public class GameCamera : MonoBehaviour
     {
         zoomAdjustment.enabled = false;
     }
+
+    public void SetCameraBounds(Rect bounds)
+    {
+        CameraBounds = bounds;
+    }
+
+    public void UpdateFreeRoam(Vector3 offset)
+    {
+        freeRoamOffset += offset;
+        //Debug.Log(offset.ToString());
+        currentCameraState = CameraState.FREE_ROAM;
+    }
+
+    private Vector3 BoundedCameraPosition()
+    {
+        var worldRect = GameCamera.GetCameraWorldRect(CameraComponent, new Rect(0f, 0f, 1f, 1f));
+        var cameraShift = Vector3.zero;
+        if (CameraBounds.xMin > worldRect.xMin)
+            cameraShift.x = CameraBounds.xMin - worldRect.xMin;
+        else if (CameraBounds.xMax < worldRect.xMax)
+            cameraShift.x = CameraBounds.xMax - worldRect.xMax;
+
+        if (CameraBounds.yMin > worldRect.yMin)
+            cameraShift.y = CameraBounds.yMin - worldRect.yMin;
+        else if (CameraBounds.yMax < worldRect.yMax)
+            cameraShift.y = CameraBounds.yMax - worldRect.yMax;
+
+        //if (cameraShift != Vector3.zero)
+        //    Debug.Log("Boundary");
+
+        return cameraShift;
+    }
 }
 
 struct SafeZoneBounds
@@ -110,7 +166,7 @@ struct SafeZoneBounds
     public bool Update(Camera camera)
     {
         // safe area in world space coordinates
-        var worldRect = GetWorldRect(camera);
+        var worldRect = GameCamera.GetCameraWorldRect(camera, safeZone);
         cameraShift = Vector2.zero;
 
         // check if safe area contains follow object
@@ -134,20 +190,8 @@ struct SafeZoneBounds
     public void DrawGizmos(Camera camera)
     {
         Gizmos.color = new Color(0, 0, 1, .5f);
-        var worldRect = GetWorldRect(camera);
+        var worldRect = GameCamera.GetCameraWorldRect(camera, safeZone);
         Gizmos.DrawCube(worldRect.center, worldRect.size);
-    }
-
-    Rect GetWorldRect(Camera camera)
-    {
-        float height = camera.orthographicSize * 2.0f;
-        float width = height * camera.aspect;
-        var safeZoneWorldRect = new Rect(
-            camera.ViewportToWorldPoint(new Vector2(safeZone.x, safeZone.y)),
-            new Vector2(width * safeZone.width, height * safeZone.height)
-            );
-
-        return safeZoneWorldRect;
     }
 }
 
