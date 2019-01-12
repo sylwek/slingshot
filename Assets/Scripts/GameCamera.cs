@@ -10,6 +10,7 @@ public class GameCamera : MonoBehaviour
         FREE_ROAM,
         SMOOTH_MOVE,
         SAFEZONE_BOUNDS,
+        IDLE,
     }
 
     private CameraState currentCameraState = CameraState.FREE_ROAM;
@@ -22,7 +23,7 @@ public class GameCamera : MonoBehaviour
     ZoomAdjustment zoomAdjustment;
 
     // free roam
-    Vector3 freeRoamOffset = Vector3.zero;
+    Vector3 freeRoamOrigin = Vector3.zero;
 
     // Use this for initialization
     void Start()
@@ -65,20 +66,18 @@ public class GameCamera : MonoBehaviour
                 transform.position -= new Vector3(safeZone.cameraShift.x, safeZone.cameraShift.y);
                 break;
             case CameraState.FREE_ROAM:
-                Debug.Log("@@@ Pos: " + transform.position.ToString() + " Offset: " + freeRoamOffset.ToString());
-                transform.position -= freeRoamOffset;
-                freeRoamOffset = Vector3.zero;
+                transform.position = transform.position + freeRoamOrigin - CameraComponent.ScreenToWorldPoint(Input.mousePosition);
                 break;
         }
 
-        //if (!zoomAdjustment.Update(CameraComponent.orthographicSize))
-        //    CameraComponent.orthographicSize = zoomAdjustment.zoomedOrthCameraSize;
+        if (!zoomAdjustment.Update(CameraComponent.orthographicSize))
+            CameraComponent.orthographicSize = zoomAdjustment.zoomedOrthCameraSize;
 
         if (CameraBounds != Rect.zero)
             transform.position += BoundedCameraPosition();
 
         if (movementDone)
-            currentCameraState = CameraState.FREE_ROAM;
+            currentCameraState = CameraState.IDLE;
     }
 
     public static Rect GetCameraWorldRect(Camera camera, Rect viewportRect)
@@ -121,11 +120,15 @@ public class GameCamera : MonoBehaviour
         CameraBounds = bounds;
     }
 
-    public void UpdateFreeRoam(Vector3 offset)
+    public void EnableFreeRoam(Vector3 origin)
     {
-        freeRoamOffset += offset;
-        //Debug.Log(offset.ToString());
+        freeRoamOrigin = origin;
         currentCameraState = CameraState.FREE_ROAM;
+    }
+
+    public void DisableFreeRoam()
+    {
+        currentCameraState = CameraState.IDLE;
     }
 
     private Vector3 BoundedCameraPosition()
