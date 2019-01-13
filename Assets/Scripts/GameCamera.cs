@@ -72,8 +72,8 @@ public class GameCamera : MonoBehaviour
                 break;
         }
 
-        if (!zoomAdjustment.Update(CameraComponent.orthographicSize))
-            CameraComponent.orthographicSize = zoomAdjustment.zoomedOrthCameraSize;
+        //if (!zoomAdjustment.Update(CameraComponent.orthographicSize))
+        //    CameraComponent.orthographicSize = zoomAdjustment.zoomedOrthCameraSize;
 
         if (CameraBounds != Rect.zero)
             transform.position += BoundedCameraPosition();
