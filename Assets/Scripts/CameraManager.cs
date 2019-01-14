@@ -4,34 +4,24 @@ using UnityEngine.EventSystems;
 
 public class CameraManager : MonoBehaviour
 {
-    public Camera gameCamera;
+    public GameManager gameManager;
     public GameObject SceneDragDetectionObject;
+
+    private GameCamera gameCameraComponent;
+    private float defaultCameraSize;
 
     // Use this for initialization
     void Start()
     {
+        gameCameraComponent = gameManager.gameCamera.GetComponent<GameCamera>();
+        gameCameraComponent.SetCameraBounds(gameManager.CameraBounds);
+
+        defaultCameraSize = gameManager.gameCamera.orthographicSize;
+
         SetupDragEventTriggers();
-    }
 
-    // Update is called once per frame
-    void Update()
-    {
-
-    }
-
-    public void OnDragBegin(PointerEventData data)
-    {
-        gameCamera.GetComponent<GameCamera>().EnableFreeRoam(gameCamera.ScreenToWorldPoint(Input.mousePosition));
-    }
-
-    public void OnDrag(PointerEventData data)
-    {
-
-    }
-
-    public void OnDragEnd(PointerEventData data)
-    {
-        gameCamera.GetComponent<GameCamera>().DisableFreeRoam();
+        gameManager.onNextShootSetup.AddListener(() => { SmoothMoveToInitialPosition(); });
+        gameManager.myCatapult.onProjectileLaunched.AddListener(OnProjectileLaunched);
     }
 
     private void SetupDragEventTriggers()
@@ -40,17 +30,29 @@ public class CameraManager : MonoBehaviour
 
         var dragBeginEntry = new EventTrigger.Entry();
         dragBeginEntry.eventID = EventTriggerType.BeginDrag;
-        dragBeginEntry.callback.AddListener((data) => { OnDragBegin((PointerEventData)data); });
+        dragBeginEntry.callback.AddListener((data) => { gameCameraComponent.EnableFreeRoam(gameManager.gameCamera.ScreenToWorldPoint(Input.mousePosition)); });
         trigger.triggers.Add(dragBeginEntry);
-
-        //var dragEntry = new EventTrigger.Entry();
-        //dragEntry.eventID = EventTriggerType.Drag;
-        //dragEntry.callback.AddListener((data) => { OnDrag((PointerEventData)data); });
-        //trigger.triggers.Add(dragEntry);
 
         var dragEndEntry = new EventTrigger.Entry();
         dragEndEntry.eventID = EventTriggerType.EndDrag;
-        dragEndEntry.callback.AddListener((data) => { OnDragEnd((PointerEventData)data); });
+        dragEndEntry.callback.AddListener((data) => { gameCameraComponent.DisableFreeRoam(); });
         trigger.triggers.Add(dragEndEntry);
+    }
+
+    private void OnProjectileLaunched()
+    {
+        gameCameraComponent.FollowWithSafeZone(gameManager.myCatapult.currentProjectile, gameManager.safeAreaDeadzone);
+        gameCameraComponent.AdjustZoom(
+            gameManager.myCatapult.currentProjectile,
+            gameManager.maxFlightZoomPercentage,
+            gameManager.maxZoomVelocityThreshold,
+            gameManager.zoomTimeFactor,
+            defaultCameraSize);
+    }
+
+    private void SmoothMoveToInitialPosition()
+    {
+        gameCameraComponent.SmoothMoveToPoint(gameManager.initialCameraPosition.position, gameManager.NextShootCameraMovementSpeed);
+        gameCameraComponent.DisableZoomAdjustment();
     }
 }

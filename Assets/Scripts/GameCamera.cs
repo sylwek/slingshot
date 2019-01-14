@@ -37,16 +37,6 @@ public class GameCamera : MonoBehaviour
     {
         if (!debugInfo)
             return;
-        //Gizmos.color = new Color(0, 0, 1, .5f);
-        //var camera = GetComponent<Camera>();
-
-        //float height = camera.orthographicSize * 2.0f;
-        //float width = height * camera.aspect;
-
-        //Gizmos.DrawCube(camera.ViewportToWorldPoint(
-        //    new Vector3(0.5f, 0.5f, camera.nearClipPlane)),
-        //    new Vector2(width / 2, height / 2)
-        //    );
 
         safeZone.DrawGizmos(GetComponent<Camera>());
     }
@@ -54,15 +44,16 @@ public class GameCamera : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        bool movementDone = false;
         switch (currentCameraState)
         {
             case CameraState.SMOOTH_MOVE:
-                movementDone = smoothMove.Update(transform.position);
+                if(smoothMove.Update(transform.position))
+                    currentCameraState = CameraState.IDLE;
+
                 transform.position = new Vector3(smoothMove.calculatedPosition.x, smoothMove.calculatedPosition.y, transform.position.z);
                 break;
             case CameraState.SAFEZONE_BOUNDS:
-                movementDone = safeZone.Update(CameraComponent);
+                safeZone.Update(CameraComponent);
                 transform.position -= new Vector3(safeZone.cameraShift.x, safeZone.cameraShift.y);
                 break;
             case CameraState.FREE_ROAM:
@@ -72,14 +63,11 @@ public class GameCamera : MonoBehaviour
                 break;
         }
 
-        //if (!zoomAdjustment.Update(CameraComponent.orthographicSize))
-        //    CameraComponent.orthographicSize = zoomAdjustment.zoomedOrthCameraSize;
+        if(zoomAdjustment.Update(CameraComponent.orthographicSize))
+            CameraComponent.orthographicSize = zoomAdjustment.calculatedCameraSize;
 
         if (CameraBounds != Rect.zero)
             transform.position += BoundedCameraPosition();
-
-        if (movementDone)
-            currentCameraState = CameraState.IDLE;
     }
 
     public static Rect GetCameraWorldRect(Camera camera, Rect viewportRect)
@@ -106,9 +94,9 @@ public class GameCamera : MonoBehaviour
         currentCameraState = CameraState.SAFEZONE_BOUNDS;
     }
 
-    public void AdjustZoom(GameObject velocityScr, float maxZoom, float velocityThreshold, float speed)
+    public void AdjustZoom(GameObject velocityScr, float maxZoom, float velocityThreshold, float time, float defaultCameraSize)
     {
-        zoomAdjustment = new ZoomAdjustment(velocityScr, maxZoom, velocityThreshold, speed, CameraComponent.orthographicSize);
+        zoomAdjustment = new ZoomAdjustment(velocityScr, maxZoom, velocityThreshold, time, defaultCameraSize);
         zoomAdjustment.enabled = true;
     }
 
@@ -147,9 +135,6 @@ public class GameCamera : MonoBehaviour
         else if (CameraBounds.yMax < worldRect.yMax)
             cameraShift.y = CameraBounds.yMax - worldRect.yMax;
 
-        //if (cameraShift != Vector3.zero)
-        //    Debug.Log("Boundary");
-
         return cameraShift;
     }
 }
@@ -168,7 +153,7 @@ struct SafeZoneBounds
         cameraShift = Vector2.zero;
     }
 
-    public bool Update(Camera camera)
+    public void Update(Camera camera)
     {
         // safe area in world space coordinates
         var worldRect = GameCamera.GetCameraWorldRect(camera, safeZone);
@@ -177,7 +162,7 @@ struct SafeZoneBounds
         // check if safe area contains follow object
         var bounds = followObject.GetComponent<Collider2D>().bounds;
         if (worldRect.Contains(bounds.min) && worldRect.Contains(bounds.max))
-            return false; // within rect
+            return; // within rect
 
         if (bounds.min.x < worldRect.xMin)
             cameraShift.x = worldRect.xMin - bounds.min.x;
@@ -188,8 +173,6 @@ struct SafeZoneBounds
             cameraShift.y = worldRect.yMin - bounds.min.y;
         else if (bounds.max.y > worldRect.yMax)
             cameraShift.y = worldRect.yMax - bounds.max.y;
-
-        return false;
     }
 
     public void DrawGizmos(Camera camera)
@@ -233,49 +216,47 @@ struct SmoothMove
 
 struct ZoomAdjustment
 {
-    public float zoomedOrthCameraSize;
+    public float calculatedCameraSize;
+    public bool enabled;
 
-    private float maxProjectileZoom;
-    private float maxZoomVelocityThreshold;
-    private float projectileZoomSpeedFactor;
-    private float referenceCameraSize;
     private GameObject VelocitySource;
-    public bool enabled { get; set; }
+    private float maxZoom;
+    private float velocityThreshold;
+    private float timeFactor;
+    private float defaultCameraSize;
 
-    public ZoomAdjustment(GameObject velocityScr, float maxZoom, float velocityThreshold, float speed, float cameraSize)
+    public ZoomAdjustment(GameObject velocityScr, float maxZoom, float velocityThreshold, float time, float defaultCameraSize)
     {
-        zoomedOrthCameraSize = cameraSize;
-        VelocitySource = velocityScr;
-        maxProjectileZoom = maxZoom;
-        maxZoomVelocityThreshold = velocityThreshold;
-        projectileZoomSpeedFactor = speed;
-        referenceCameraSize = cameraSize;
+        calculatedCameraSize = defaultCameraSize;
         enabled = false;
+
+        VelocitySource = velocityScr;
+        this.maxZoom = maxZoom;
+        this.velocityThreshold = velocityThreshold;
+        timeFactor = time;
+        this.defaultCameraSize = defaultCameraSize;
     }
 
     public bool Update(float currentCameraSize)
     {
         if (VelocitySource == null)
-            return true;
+            return false;
 
         if (enabled)
         {
-            float zoomFactor = Mathf.Lerp(0f, 1f, VelocitySource.GetComponent<Rigidbody2D>().velocity.magnitude / maxZoomVelocityThreshold);
-            var adjustedSize = referenceCameraSize - (zoomFactor * maxProjectileZoom * referenceCameraSize);
+            float zoomFactor = Mathf.Lerp(0f, 1f, VelocitySource.GetComponent<Rigidbody2D>().velocity.magnitude / velocityThreshold);
+            var adjustedSize = defaultCameraSize + (zoomFactor * maxZoom * defaultCameraSize);
             float velocity = 0f;
-            zoomedOrthCameraSize = Mathf.SmoothDamp(currentCameraSize, adjustedSize, ref velocity, projectileZoomSpeedFactor);
-            return false;
+            calculatedCameraSize = Mathf.SmoothDamp(currentCameraSize, adjustedSize, ref velocity, timeFactor);
         }
         else
         {
             float velocity = 0f;
-            zoomedOrthCameraSize = Mathf.SmoothDamp(currentCameraSize, referenceCameraSize, ref velocity, projectileZoomSpeedFactor);
-            bool done = (zoomedOrthCameraSize - referenceCameraSize) < 0.05f;
-
-            if (done)
-                zoomedOrthCameraSize = referenceCameraSize;
-
-            return done;
+            calculatedCameraSize = Mathf.SmoothDamp(currentCameraSize, defaultCameraSize, ref velocity, timeFactor);
+            if ((calculatedCameraSize - defaultCameraSize) < 0.05f)
+                calculatedCameraSize = defaultCameraSize;
         }
+
+        return true;
     }
 }
