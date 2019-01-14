@@ -1,5 +1,7 @@
 ﻿using UnityEngine;
 using System.Collections;
+using System;
+using UnityEngine.EventSystems;
 
 public class Catapult : MonoBehaviour
 {
@@ -8,6 +10,7 @@ public class Catapult : MonoBehaviour
     {
         EMPTY,
         LOADED,
+        AIMING,
         SHOOTING,
     }
 
@@ -18,7 +21,8 @@ public class Catapult : MonoBehaviour
 
     // arm parameters
     public float baseArmRotation = 0.0f;
-    public float releaseArmRotation = 0.0f;
+    public float maxArmRotation = 0.0f;
+    public float minShootAngleGap = 10f;
     public float releaseProjectileTime = 0.5f;
     public float armSpeed = 3.0f;
     public int trajectoryLineResolution = 30;
@@ -28,6 +32,10 @@ public class Catapult : MonoBehaviour
     private CatapultState catapultState = CatapultState.EMPTY;
     private float currentArmTime = 0.0f;
     private float gravity = -9.8f;
+    private float shootAngle = 0f;
+    private float releaseProjectileAngle = 0f;
+    private float armSpeedFactor = 1f;
+    private Vector2 shootInitialVelocity = Vector2.one;
 
 
     // Use this for initialization
@@ -37,16 +45,22 @@ public class Catapult : MonoBehaviour
         gravity = Physics2D.gravity.y * currentProjectile.GetComponent<Rigidbody2D>().gravityScale;
     }
 
+    private void OnMouseDown()
+    {
+        if (catapultState == CatapultState.LOADED)
+            catapultState = CatapultState.AIMING;
+    }
+
     // Update is called once per frame
     void Update ()
     {
-        if (Input.GetMouseButtonUp(0) == true)
-        {
-            Shoot();
-        }
+        //if (Input.GetMouseButtonUp(0) == true)
+        //{
+        //    Shoot();
+        //}
 
-        var trajData = CalculateProjectileTrajectoryData();
-        Debug.Log("InitialVel: " + trajData.ToString());
+        //var trajData = CalculateProjectileTrajectoryData();
+        //Debug.Log("InitialVel: " + trajData.ToString());
 
         switch (catapultState)
         {
@@ -56,34 +70,81 @@ public class Catapult : MonoBehaviour
                 break;
 
             case CatapultState.LOADED:
+                //if (Input.GetMouseButtonUp(0) == true)
+                //{
+                //    //catapultState = CatapultState.SHOOTING;
+                //    currentProjectile.GetComponent<Projectile>().Activate(true);
+                //    currentProjectile.GetComponent<Projectile>().ApplyVelocity(trajData.initialVelocity);
+                //}
+
+                //currentArmTime = 0.0f;
+                break;
+
+            case CatapultState.AIMING:
+                //update arm angle
+                var mouseWorldPos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+                catapultArm.transform.rotation = Quaternion.Euler(0f, 0f, Mathf.LerpAngle(baseArmRotation, maxArmRotation + minShootAngleGap, Mathf.Clamp01(mouseWorldPos.y / catapultArm.transform.position.y)));
+
                 if (Input.GetMouseButtonUp(0) == true)
                 {
-                    //catapultState = CatapultState.SHOOTING;
-                    currentProjectile.GetComponent<Projectile>().Activate(true);
-                    currentProjectile.GetComponent<Projectile>().ApplyVelocity(trajData.initialVelocity);
+                    catapultState = CatapultState.SHOOTING;
+                    shootAngle = catapultArm.transform.rotation.eulerAngles.z;
+                    var tensionData = CalculateTensionData();
+                    releaseProjectileAngle = tensionData.releaseAngle;
+                    armSpeedFactor = tensionData.forceFactor;
+                    var projData = CalculateProjectileTrajectoryData();
+                    shootInitialVelocity = projData.initialVelocity;
                 }
 
-                currentArmTime = 0.0f;
                 break;
 
             case CatapultState.SHOOTING:
                 currentArmTime += Time.deltaTime;
-                catapultArm.transform.rotation = Quaternion.Euler(0f, 0f, Mathf.LerpAngle(baseArmRotation, releaseArmRotation, Mathf.Clamp01(currentArmTime * armSpeed)));
+                catapultArm.transform.rotation = Quaternion.Euler(0f, 0f, Mathf.LerpAngle(shootAngle, releaseProjectileAngle, Mathf.Clamp01(currentArmTime * armSpeed /** armSpeedFactor*/)));
 
-                if ((currentArmTime >= releaseProjectileTime) && (currentProjectile.GetComponent<Projectile>().IsActive() == false))
+                if (/*(currentArmTime >= releaseProjectileTime)*/ Mathf.DeltaAngle(catapultArm.transform.rotation.eulerAngles.z, releaseProjectileAngle) < 0.01f
+                    && (currentProjectile.GetComponent<Projectile>().IsActive() == false))
                 {
                     currentProjectile.transform.parent = this.transform.parent;
                     currentProjectile.GetComponent<Projectile>().Activate(true);
-                    currentProjectile.GetComponent<Projectile>().ApplyVelocity(new Vector2(50.0f, 20.0f));
+                    currentProjectile.GetComponent<Projectile>().ApplyVelocity(shootInitialVelocity);
                 }
 
                 if (currentArmTime >= 2.0f)
                 {
                     catapultState = CatapultState.EMPTY;
+                    currentArmTime = 0.0f;
                 }
                 break;
         }
-	}
+    }
+
+    TensionData CalculateTensionData()
+    {
+        var mouseWorldPos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        var force = Mathf.Abs(catapultArm.transform.position.x - mouseWorldPos.x) / catapultArm.transform.position.x;
+        var releaseAngle = Mathf.LerpAngle(catapultArm.transform.rotation.eulerAngles.z, maxArmRotation, Mathf.Clamp01(force));
+        return new TensionData(releaseAngle, force);
+    }
+
+    Vector2 GetProjectileReleasePoint()
+    {
+        var tensionData = CalculateTensionData();
+        var projectileArmDistance = (catapultArm.transform.position - currentProjectile.transform.position).magnitude;
+        //var position = catapultArm.transform.position + Quaternion.Euler(0, 0, tensionData.releaseAngle) * projectileArmDistance
+        //Vector3 newFwd = Quaternion.Euler(0, 0, tensionData.releaseAngle) * Vector2.zero;
+        var adjustedAngle = tensionData.releaseAngle + 180f;
+        return catapultArm.transform.position + new Vector3(
+            projectileArmDistance * Mathf.Cos(adjustedAngle * Mathf.Deg2Rad),
+            projectileArmDistance * Mathf.Sin(adjustedAngle * Mathf.Deg2Rad),
+            0f
+            );
+    }
+
+    Transform GetTensionReferencePoint()
+    {
+        return catapultArm.transform;
+    }
 
     //
     private void SpawnProjectile()
@@ -96,25 +157,20 @@ public class Catapult : MonoBehaviour
         catapultState = CatapultState.LOADED;
     }
 
-    //
-    private void Shoot()
-    {
-
-    }
-
     void OnDrawGizmos()
     {
-        if (!currentProjectile)
+        if (!currentProjectile || catapultState != CatapultState.AIMING)
             return;
 
         Gizmos.color = new Color(1, 0, 0, 0.3f);
         var trajData = CalculateProjectileTrajectoryData();
-
+        Debug.Log("Initial Vel: " + trajData.initialVelocity.ToString());
+        Gizmos.DrawSphere(GetProjectileReleasePoint(), .3f);
         for (int dotIndex = 0; dotIndex < trajectoryLineResolution; ++dotIndex)
         {
             float simulationTime = dotIndex / (float)trajectoryLineResolution * trajData.flightTime;
             var displacement = trajData.initialVelocity * simulationTime + Vector2.up * gravity * simulationTime * simulationTime / 2f;
-            var drawPoint = new Vector2(currentProjectile.transform.position.x, currentProjectile.transform.position.y) + displacement;
+            var drawPoint = /*new Vector2(currentProjectile.transform.position.x, currentProjectile.transform.position.y)*/GetProjectileReleasePoint() + displacement;
             Gizmos.DrawSphere(new Vector3(drawPoint.x, drawPoint.y, Camera.main.nearClipPlane), .1f);
         }
     }
@@ -128,10 +184,9 @@ public class Catapult : MonoBehaviour
 
         var targetPosition = catapultArm.transform.position + adjustedShootForce;
         var h = adjustedShootForce.y;
-        //var gravity = Physics2D.gravity.y;
 
-        float displacementY = targetPosition.y - currentProjectile.transform.position.y;
-        float displacementX = targetPosition.x - currentProjectile.transform.position.x;
+        float displacementY = targetPosition.y - /*currentProjectile.transform.position.y*/GetProjectileReleasePoint().y;
+        float displacementX = targetPosition.x - /*currentProjectile.transform.position.x*/GetProjectileReleasePoint().x;
         float time = Mathf.Sqrt(-2 * h / gravity) + Mathf.Sqrt(2 * (displacementY - h) / gravity);
         Vector2 velocityY = Vector2.up * Mathf.Sqrt(-2 * gravity * h);
         Vector2 velocityX = new Vector2(displacementX / time, 0f);
@@ -151,3 +206,16 @@ struct TrajectoryData
         this.flightTime = flightTime;
     }
 }
+
+struct TensionData
+{
+    public readonly float releaseAngle;
+    public readonly float forceFactor;
+
+    public TensionData(float releaseAngle, float forceFactor)
+    {
+        this.releaseAngle = releaseAngle;
+        this.forceFactor = forceFactor;
+    }
+}
+

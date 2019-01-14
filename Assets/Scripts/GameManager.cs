@@ -80,7 +80,7 @@ public class GameManager : MonoBehaviour
     public void StartCountdownToNextShoot()
     {
         Debug.Log("StartCountdownToNextShoot");
-        //NextShootCountdown = NextShootDelayTime;
+        NextShootCountdown = NextShootDelayTime;
     }
 
     private void SetupNextShoot()
