@@ -28,6 +28,7 @@ public class Projectile : MonoBehaviour
             {
                 Debug.Log("Projectile out of scene. Starting countdown for next shoot.");
                 RequestCountdown();
+                //Destroy(this.gameObject);
             }
 
             cumulativeVelocity.Enqueue(GetComponent<Rigidbody2D>().velocity);
@@ -38,6 +39,10 @@ public class Projectile : MonoBehaviour
                     RequestCountdown();
             }
         }
+
+        //if(countdownRequested && IsActive() && !IsInCameraView())
+        //    Destroy(this.gameObject);
+
     }
 
     //
@@ -53,9 +58,10 @@ public class Projectile : MonoBehaviour
     }
 
     //
-    public void ApplyVelocity(Vector2 shootVelocity)
+    public void ApplyForce(Vector2 force)
     {
-        GetComponent<Rigidbody2D>().velocity = shootVelocity;
+        Debug.Log("Launching projectile with force: " + force.ToString());
+        GetComponent<Rigidbody2D>().AddForce(force, ForceMode2D.Impulse);
     }
 
     private bool IsInCameraView()
@@ -73,8 +79,13 @@ public class Projectile : MonoBehaviour
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
-        if (!collisionOccured && gameManager != null)
+        if (!collisionOccured
+            && collision.otherCollider.gameObject.GetComponent<Projectile>() == null
+            && collision.otherCollider.gameObject != this.gameObject
+            && gameManager != null)
+        {
             gameManager.OnFirstProjectileCollision();
+        }
 
         collisionOccured = true;
     }

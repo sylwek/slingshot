@@ -20,7 +20,8 @@ public class CameraManager : MonoBehaviour
 
         SetupDragEventTriggers();
 
-        gameManager.onNextShootSetup.AddListener(() => { SmoothMoveToInitialPosition(); });
+        //gameManager.onNextShootSetup.AddListener(() => { SmoothMoveToInitialPosition(); });
+        gameManager.onNextShootSetup.AddListener(SmoothMoveToInitialPosition);
         gameManager.myCatapult.onProjectileLaunched.AddListener(OnProjectileLaunched);
     }
 
